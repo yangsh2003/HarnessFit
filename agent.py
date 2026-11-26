@@ -137,6 +137,7 @@ def solve(task, bits, settings, llm, make_env, log, stats):
     compact, planning, acceptance, files, retry = map(int, bits)
     turns = settings['turns']
     diag = stats['diagnostics']
+    diag.update(reasoning_turns=0, length_limited_turns=0, reasoning_only_truncations=0)
     current, accepted = '', None
     attempt = 0
     stop = 'turn_limit'
@@ -170,6 +171,12 @@ def solve(task, bits, settings, llm, make_env, log, stats):
                 stats['steps'] = step
                 stats['prompt_tokens'] += usage['prompt_tokens']
                 stats['completion_tokens'] += usage['completion_tokens']
+                if usage.get('has_reasoning'):
+                    diag['reasoning_turns'] += 1
+                if finish == 'length':
+                    diag['length_limited_turns'] += 1
+                    if usage.get('has_reasoning') and not answer.strip():
+                        diag['reasoning_only_truncations'] += 1
                 log('model', step=step, attempt=attempt, content=answer, usage=usage, finish_reason=finish,
                     prompt_messages=messages if messages != history else None)
                 history.append({'role':'assistant','content':answer.rsplit('</think>',1)[-1]})

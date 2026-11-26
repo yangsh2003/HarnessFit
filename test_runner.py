@@ -15,7 +15,11 @@ from test_agent import GitFixture, FIX
 class RunnerTest(unittest.TestCase):
     def test_http_to_prediction_and_resume(self):
         prompts = []
-        responses = iter([FIX, 'SUBMIT'])
+        responses = iter([
+            ({'content':None, 'reasoning':'PRIVATE_REASONING_FIXTURE'}, 'length'),
+            ({'content':FIX, 'reasoning_content':'PRIVATE_REASONING_FIXTURE'}, 'stop'),
+            ({'content':'<think>PRIVATE_REASONING_FIXTURE</think>SUBMIT'}, 'stop'),
+        ])
         healthy = False
 
         class Handler(BaseHTTPRequestHandler):
@@ -29,8 +33,10 @@ class RunnerTest(unittest.TestCase):
                         self.send_error(503)
                         return
                     assert self.path == '/v1/chat/completions'
-                    body = {'choices':[{'message':{'content':next(responses)},'finish_reason':'stop'}],
-                            'usage':{'prompt_tokens':100,'completion_tokens':12}}
+                    message, finish = next(responses)
+                    body = {'choices':[{'message':message,'finish_reason':finish}],
+                            'usage':{'prompt_tokens':100,'completion_tokens':12,
+                                     'completion_tokens_details':{'reasoning_tokens':7}}}
                 data = json.dumps(body).encode()
                 self.send_response(200)
                 self.send_header('Content-Length', str(len(data)))
@@ -65,11 +71,21 @@ class RunnerTest(unittest.TestCase):
             result = json.loads((slot/'result.json').read_text())
             self.assertEqual(result['status'], 'submitted')
             self.assertEqual(result['prediction_sha256'], sha((slot/'prediction.json').read_bytes()))
-            self.assertEqual(result['completion_tokens'], 24)
-            self.assertEqual(result['prompt_tokens'], 200)
+            self.assertEqual(result['completion_tokens'], 36)
+            self.assertEqual(result['prompt_tokens'], 300)
+            self.assertIs(result['sampling']['enable_thinking'], True)
+            self.assertEqual(result['diagnostics']['reasoning_turns'], 3)
+            self.assertEqual(result['diagnostics']['reasoning_only_truncations'], 1)
+            self.assertEqual(result['diagnostics']['length_limited_turns'], 1)
+            trace = (slot/'trace.jsonl').read_text()
+            self.assertNotIn('PRIVATE_REASONING_FIXTURE', trace)
+            self.assertNotIn('PRIVATE_REASONING_FIXTURE', json.dumps(prompts))
+            turns = [event for event in map(json.loads, trace.splitlines()) if event['event'] == 'model']
+            self.assertTrue(all(turn['usage']['reasoning_tokens'] == 7 for turn in turns))
+            self.assertEqual(turns[0]['content'], '')
             self.assertNotIn('PRIVATE_FIXTURE_GOLD', (slot/'trace.jsonl').read_text())
             self.assertNotIn('PRIVATE_FIXTURE_GOLD', json.dumps(prompts))
-            self.assertTrue(all(p['chat_template_kwargs'] == {'enable_thinking':False} for p in prompts))
+            self.assertTrue(all(p['chat_template_kwargs'] == {'enable_thinking':True} for p in prompts))
             num_calls = len(prompts)
             self.assertEqual(run_slot(args, env_class=fixture), 0)
             self.assertEqual(len(prompts), num_calls)

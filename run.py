@@ -19,6 +19,7 @@ from sandbox import Sandbox, image_name
 
 HERE = Path(__file__).resolve().parent
 PUBLIC = ('instance_id','repo','base_commit','problem_statement')
+ENABLE_THINKING = True
 DEFAULTS = {'turns':40, 'context':32768, 'total_tokens':160000, 'max_output':2048,
             'temperature':0.6, 'command_timeout':90, 'stall':6}
 
@@ -75,7 +76,7 @@ class Vllm:
             raise RuntimeError(f'HTTP {exc.code} from model service: {detail}') from exc
 
     def fields(self, messages):
-        return {'model':self.model, 'messages':messages, 'chat_template_kwargs':{'enable_thinking':False}}
+        return {'model':self.model, 'messages':messages, 'chat_template_kwargs':{'enable_thinking':ENABLE_THINKING}}
 
     def tokens(self, messages):
         result = self.call(self.base[:-3] + '/tokenize', self.fields(messages))
@@ -89,14 +90,31 @@ class Vllm:
             **self.fields(messages), 'temperature':self.temperature,
             'top_p':0.95, 'top_k':20, 'seed':(self.seed + step - 1) % (2**31), 'max_tokens':max_output, 'stream':False})
         choice = data['choices'][0]
-        content = choice['message'].get('content') or ''
+        message = choice['message']
+        content = message.get('content') or ''
         if not isinstance(content, str):
             raise ValueError('Expected text completion')
+        # vLLM exposes the analysis separately. Only the final answer goes to the agent or trace.
+        has_reasoning = any(bool(message.get(field)) for field in ('reasoning', 'reasoning_content'))
+        if '</think>' in content and (not has_reasoning or content.lstrip().startswith('<think>')):
+            analysis, _, content = content.partition('</think>')
+            has_reasoning = has_reasoning or bool(analysis.removeprefix('<think>').strip())
+        elif content.lstrip().startswith('<think>'):
+            has_reasoning = True
+            content = ''
         usage = data['usage']
         for k in ('prompt_tokens', 'completion_tokens'):
             if type(usage.get(k)) is not int or usage[k] < 0:
                 raise ValueError('Missing model usage accounting: ' + k)
-        return content, {k:usage[k] for k in ('prompt_tokens','completion_tokens')}, choice['finish_reason']
+        accounting = {k:usage[k] for k in ('prompt_tokens','completion_tokens')}
+        accounting['has_reasoning'] = has_reasoning
+        details = usage.get('completion_tokens_details') or {}
+        if details.get('reasoning_tokens') is not None:
+            count = details['reasoning_tokens']
+            if type(count) is not int or not 0 <= count <= usage['completion_tokens']:
+                raise ValueError('Invalid reasoning token accounting')
+            accounting['reasoning_tokens'] = count  # Already included in completion_tokens.
+        return content, accounting, choice['finish_reason']
 
 
 def safe_component(value):
@@ -142,7 +160,7 @@ def run_slot(args, *, env_class=Sandbox, model_class=Vllm):
             archive.mkdir(parents=True)
             for path in previous_files:
                 os.replace(path, archive/path.name)
-        stats = dict(identity, sampling=dict(top_p=0.95, top_k=20, enable_thinking=False), status='infra_error', steps=0, prompt_tokens=0, completion_tokens=0,
+        stats = dict(identity, sampling=dict(top_p=0.95, top_k=20, enable_thinking=ENABLE_THINKING), status='infra_error', steps=0, prompt_tokens=0, completion_tokens=0,
                      diagnostics=dict(edits_seen=False, valid_test_runs=0, parse_errors=0, repeated_actions=0,
                                       restarts=0, submit_attempts=0))
         started = time.monotonic()
@@ -173,7 +191,7 @@ def parser():
     p.add_argument('--model',required=True)
     p.add_argument('--seed',type=int,required=True)
     p.add_argument('--config',required=True)
-    p.add_argument('--out',type=Path,default=Path('runs'))
+    p.add_argument('--out',type=Path,default=Path('runs_thinking'))
     p.add_argument('--base-url',default=os.getenv('HFIT_BASE_URL','http://127.0.0.1:8000/v1'))
     for k, v in DEFAULTS.items():
         p.add_argument('--'+k.replace('_','-'),type=type(v),default=v)

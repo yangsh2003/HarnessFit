@@ -62,6 +62,7 @@
     "sphinx-doc__sphinx-9367",
     "sphinx-doc__sphinx-9698"
   ],
+  "enable_thinking": true,
   "factors": [
     "context",
     "planning",
@@ -94,7 +95,7 @@
     "sphinx-doc__sphinx-9461"
   ],
   "modules": {
-    "agent.py": "b628242f93b2c697c5e1a3fbed6d78d422adc155dd6cac77832321b9177cc630",
+    "agent.py": "3a346d1d6f7e3d06784e0e98c58eb258363ea487e4539d33fd418c926f768d05",
     "sandbox.py": "9808734e26577f549acd68303af2aadc661ee962d0ba2b0f4d6f07bee72ef337"
   },
   "pilot": [
@@ -120,12 +121,12 @@
     "sphinx-doc__sphinx-9229",
     "sphinx-doc__sphinx-9320"
   ],
-  "protocol_sha256": "6316ad613f01de56e69fd4fdba784555e080983eadb17a61203fcc5557041356",
+  "protocol_sha256": "12a43464f69a16ff8f5d31d3f1f41bb0ad645dfcb1ffbfa58f6df9f3abd0306c",
   "reference_config": "00000",
   "revisions": {
     "qwen9b": "c202236235762e1c871ad0ccb60c8ee5ba337b9a"
   },
-  "runner_sha256": "a6e4639b267c08cd88f6c10f1a27fb1c3b14f80f031b76c6eff19678b5e58a94",
+  "runner_sha256": "93f7d6e6864208d8adf1fd5ace43685695481fa22fb1c39a7570d29d5d04f4b9",
   "seeds": [
     1,
     2
@@ -140,7 +141,7 @@
     "turns": 40
   },
   "split_seed": 7607,
-  "study_sha256": "c40fe895b71d652fb3f6a0516269c54d95126526f9d04f022c240b88424501ec",
+  "study_sha256": "13b09eea66dc6ef36f4c93a2cfb81eb561eba67f6019921462e0fc7601d22f30",
   "target": "qwen9b",
   "tasks_sha256": "7e704bc2d1c9206b6167ecff192ca8ffc67c43a0026317a0dc4703f457373dd3",
   "version": 1

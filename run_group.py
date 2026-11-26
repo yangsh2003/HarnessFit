@@ -17,7 +17,7 @@ import study
 ROOT = Path(__file__).resolve().parent
 STUDY = ROOT / "study_9b_baai"
 DATA = ROOT / "data/swe-bench-verified-mini"
-PLAN_SHA256 = "c0c0141a628bda07357ec31e1cb446d8fe972a4736d72ef29af92300a021238a"
+PLAN_SHA256 = "1613b458c2a6fdba010cd5e3dcd3a0ea2dcde87806cb64aba042f609715b84c1"
 WEIGHTS_MANIFEST_SHA256 = "37048cc496c8992ea778fc1395f10b3c1d2dcb434f5de066f9f5c4bbf832903a"
 MODEL = "qwen9b"
 GROUPS = {
@@ -80,6 +80,8 @@ def verified_slot(runs, key, plan, tasks, images):
     if not (slot / "result.json").is_file():
         return False
     result = study.read(slot / "result.json")
+    if result.get("sampling", {}).get("enable_thinking") is not True:
+        raise ValueError(f"槽不属于启用 thinking 的实验：{slot}")
     task = {field: tasks[issue][field] for field in runner.PUBLIC}
     identity = dict(model=MODEL, config=config, seed=seed, instance_id=issue,
                     base_commit=task["base_commit"], task_sha256=runner.sha(runner.stable(task)),
@@ -182,7 +184,7 @@ def main():
     parser.add_argument("--split", choices=["dev", "holdout"], default="dev")
     parser.add_argument("--study", type=Path, default=STUDY)
     parser.add_argument("--tasks", type=Path, default=Path(os.getenv("HFIT_DATA", DATA)) / "tasks.jsonl")
-    parser.add_argument("--runs", type=Path, help="结果目录，默认 runs/组名")
+    parser.add_argument("--runs", type=Path, help="结果目录，默认 runs_thinking/组名")
     parser.add_argument("--progress", type=Path, help="协调人导出的进度，默认 <study>/progress.json")
     parser.add_argument("--selection", type=Path, help="冻结的留出选择，默认 <study>/selection.json")
     parser.add_argument("--model-dir", type=Path, default=os.getenv("HFIT_MODEL_DIR"))
@@ -193,7 +195,7 @@ def main():
     if args.jobs < 1:
         parser.error("--jobs 必须是正整数")
     args.group = args.group or prompt_group()
-    args.runs = args.runs or ROOT / "runs" / args.group
+    args.runs = args.runs or ROOT / "runs_thinking" / args.group
     plan = frozen_plan(args)
     completed, stamp = read_progress(args.progress or args.study / "progress.json", plan)
     all_slots = list(slots(plan, GROUPS[args.group], args.split))

@@ -2,7 +2,9 @@
 
 本仓库用于三人并行完成 SWE-bench Verified Mini。50 道题分为 30 道开发题和 20 道留出题。每道题运行 16 种 harness 配置，每种使用 seed 1 和 2，合计 1,600 次。模型采用冻结权重进行推理。
 
-**B、C 同学的入口是 `python run_group.py`。** 准备好模型、数据和镜像并启动 vLLM 后，输入自己的组别就会开始跑开发集。两位同学可以先准备环境，正式开跑前从 A 领取更新后的 `progress.json`。原机在交接前仍会产生新结果。
+**当前主实验使用 Qwen3.5-9B 的 thinking 模式。** 所有组的模型请求和 token 计数都显式使用 `enable_thinking=True`。每轮最多 2,048 个输出 token，思考和最终动作共用这份预算。工具只执行最终动作；轨迹记录每轮有没有产生思考、停止原因和可用的 token 计数。初始的 non-thinking 实验对应 Git 标签 `non-thinking-2026-11-26`，单独归档。
+
+**B、C 同学的入口是 `python run_group.py`。** 首次参与本轮实验时，使用新的仓库目录或 Git worktree，复用已有权重、数据和模型服务。新的运行从零计数，每组先跑 300 个开发槽。旧版生成的 `progress.json`、`selection.json` 和预测都属于上一轮。
 
 | 组别 | 负责配置（从左至右保留五位） | 开发集总量 | 留出集总量 |
 |---|---|---:|---:|
@@ -19,8 +21,8 @@
 在 GPU 机器上克隆仓库并进入根目录。后文的命令都从这里执行。已有与原机相同的环境时，激活后从第 2 节开始。
 
 ```bash
-git clone https://github.com/yangsh2003/HarnessFit.git
-cd HarnessFit
+git clone https://github.com/yangsh2003/HarnessFit.git HarnessFit-thinking
+cd HarnessFit-thinking
 python3.11 -m venv .venv
 source .venv/bin/activate
 python -m pip install -U pip
@@ -74,18 +76,18 @@ python run_group.py
 
 ## 4. 交接、断点续跑与留出集
 
-1. **开跑前刷新进度。** A 停止原全量调度继续派发新任务，让在途任务自然完成。然后从包含全部原机结果的目录导出最新进度，并把生成的 `progress.json` 发给 B、C。命令如下，其中两个路径需指向原机的实际文件。B、C 用收到的文件替换各自的 `study_9b_baai/progress.json`，或运行时传入 `--progress /实际路径/progress.json`。仓库自带的进度只代表其记录时间。
+1. **确认本轮进度。** 初次从新仓库运行时使用随代码冻结的空清单。A 后续可从本轮中央结果导出 `progress.json` 发给各组，用 `--progress /实际路径/progress.json` 接续。先用 `--dry-run` 核对组别、阶段和任务数，再正式派单。
 2. **中途断开或服务出错。** 恢复模型服务或 Docker 后，使用同一组、同一结果目录重新执行原命令。中央清单里已有预测的槽会跳过。本地已完成的槽校验后复用。空补丁也构成一次已完成的预测。
-3. **回传开发集。** 默认输出在 `runs/B/qwen9b/` 或 `runs/C/qwen9b/`，下一级依次为五位配置、种子、题目 ID。把整个组目录私下交给 A，保留每个槽的 `prediction.json`、`trace.jsonl` 和 `result.json`。A 将各组新完成的槽按原相对路径合并到中央结果目录，有同名完成记录时先核对校验值。
+3. **回传开发集。** 默认输出在 `runs_thinking/B/qwen9b/` 或 `runs_thinking/C/qwen9b/`，下一级依次为五位配置、种子、题目 ID。把整个组目录私下交给 A，保留每个槽的 `prediction.json`、`trace.jsonl` 和 `result.json`。A 将各组新完成的槽按原相对路径合并到中央结果目录，有同名完成记录时先核对校验值。
 4. **开发集选定后再跑留出集。** A 对全部 960 个开发槽集中评分并冻结 `selection.json`，B、C 将该文件放入各自的 `study_9b_baai/`。先执行 `python prepare.py images --split holdout`，再执行 `python run_group.py --split holdout` 并选自己的组。两组都保留各自的 5 种配置，每组跑 200 个留出槽，并按同样方式回传。
 
 ```bash
 # A 在能读取中央结果和公开题面的机器上执行
-python export_progress.py --runs /path/to/runs_9b_baai \
+python export_progress.py --runs /path/to/harnessfit_thinking/runs_9b_baai \
   --tasks /path/to/data/swe-bench-verified-mini/tasks.jsonl --output progress.json
 ```
 
-切换完成后，A 可以运行 `python run_group.py --group A --progress progress.json --runs /path/to/runs_9b_baai --base-url http://127.0.0.1:18000/v1` 接续自己的 6 个配置。沿用原机的 Docker 环境、`HFIT_DATA` 和推理端点。`full_9b.sh` 会对全部 16 种配置派题，三机分工期间统一使用 `run_group.py`。
+使用本轮新目录时，A 可以运行 `python run_group.py --group A --progress progress.json --runs /path/to/harnessfit_thinking/runs_9b_baai --base-url http://127.0.0.1:18000/v1` 接续自己的 6 个配置。沿用原机的 Docker 环境、`HFIT_DATA` 和推理端点。`full_9b.sh` 会对全部 16 种配置派题，三机分工期间统一使用 `run_group.py`。
 
 ### A 的集中评分命令
 
@@ -93,7 +95,7 @@ A 在已有 SWE-bench 4.1.0 的 Linux x86_64 评分环境运行下列命令。`R
 
 ```bash
 DATA="${HFIT_DATA:-$PWD/data/swe-bench-verified-mini}"
-RUNS=/path/to/runs_9b_baai
+RUNS=/path/to/harnessfit_thinking/runs_9b_baai
 python dataset_tools.py grade --data "$DATA" --runs "$RUNS" --ids-file study_9b_baai/dev.ids
 python study.py select --study study_9b_baai --tasks "$DATA/tasks.jsonl" --runs "$RUNS"
 

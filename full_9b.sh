@@ -2,9 +2,9 @@
 # Full, resumable, single-model E1 from a frozen development/holdout split.
 set -euo pipefail
 cd "$(dirname "$0")"
-data="${HFIT_DATA:-$HOME/work/harnessfit/data/swe-bench-verified-mini}"
-runs="${HFIT_RUNS:-runs_9b_v2_nov25}"
-study="${HFIT_STUDY:-study_9b_v2_nov25}"
+data="${HFIT_DATA:-$PWD/data/swe-bench-verified-mini}"
+runs="${HFIT_RUNS:-runs_thinking/full}"
+study="${HFIT_STUDY:-study_9b_baai}"
 judge="${HFIT_JUDGE_PYTHON:-python3}"
 model="${HFIT_SERVED_MODEL:-qwen9b}"
 jobs="${HFIT_JOBS:-8}"

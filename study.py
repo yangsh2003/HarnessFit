@@ -158,6 +158,7 @@ def init(args):
         study_sha256=sha(__file__),
         modules={f: sha(HERE / f) for f in ("agent.py", "sandbox.py")},
         settings=settings,
+        enable_thinking=runner.ENABLE_THINKING,
         protocol_sha256=runner.protocol_hash(settings),
         grader_timeout=args.grader_timeout,
         grader_version=JUDGE,
